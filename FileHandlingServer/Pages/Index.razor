@@ -1,0 +1,105 @@
+﻿@page "/"
+
+<PageTitle>File Upload</PageTitle>
+
+<h1>Upload Photo</h1>
+
+@if (imageUrl != "")
+{
+    <img src="@imageUrl" />
+    <br />
+    <br />
+}
+
+<div class="dropArea @dropClass">
+    Drag and drop photo or click to select a local file
+    <InputFile disabled="@Uploading" OnChange="OnInputFileChangeAsync" @ondragenter="HandleDragEnter" @ondragleave="HandleDragLeave" />
+</div>
+<br />
+<h3>Files</h3>
+<ul>
+    @foreach (var url in FileUrls)
+    {
+        <li><a href="@url">@url</a><br /></li>
+    }
+</ul>
+
+@code {
+    string imageUrl = "";
+    string dropClass = string.Empty;
+    bool Uploading = false;
+    List<string> FileUrls = new List<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ListFiles();
+    }
+
+    void HandleDragEnter()
+    {
+        dropClass = "dropAreaDrag";
+    }
+
+    void HandleDragLeave()
+    {
+        dropClass = string.Empty;
+    }
+
+    async Task OnInputFileChangeAsync(InputFileChangeEventArgs args)
+    {
+        dropClass = string.Empty;
+
+        try
+        {
+            //disable upload pane
+            Uploading = true;
+            await InvokeAsync(StateHasChanged);
+
+            //Resize to more than 400x400
+            var format = "image/png";
+            var resizeImageFile = await args.File.RequestImageFileAsync(format, 400, 400);
+
+            //read resized png data into a buffer
+            var buffer = new byte[resizeImageFile.Size];
+            await resizeImageFile.OpenReadStream().ReadAsync(buffer);
+
+            //get new filename
+            string newFileName =$"{Path.GetRandomFileName()}.{Path.GetExtension(args.File.Name)}";
+            string filePath = $"{Environment.CurrentDirectory}\\Storage\\{newFileName}";
+
+            //write the file
+            File.WriteAllBytes(filePath, buffer);
+
+            imageUrl = $"Storage/{newFileName}";
+
+            await ListFiles();
+
+            Uploading = false;
+
+            // File Quality is not good in this code
+        }
+        catch (Exception ex)
+        {
+            Uploading = false;
+            await InvokeAsync(StateHasChanged);
+            System.Diagnostics.Debug.WriteLine(ex.Message);
+            throw;
+        }
+    }
+
+    async Task ListFiles()
+    {
+        FileUrls.Clear();
+
+        var files = Directory.GetFiles(Environment.CurrentDirectory + "\\Storage", "*.*");
+
+        foreach (var filename in files)
+        {
+            var file = Path.GetFileName(filename);
+            string url = $"Storage/{file}";
+            FileUrls.Add(url);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+}
